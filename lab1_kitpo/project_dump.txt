@@ -1,0 +1,1314 @@
+============================================================
+FILE: pom.xml
+============================================================
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.example</groupId>
+    <artifactId>lab1_kitpo</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <name>lab1_kitpo</name>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <junit.version>5.12.1</junit.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>21.0.6</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-fxml</artifactId>
+            <version>21.0.6</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <source>21</source>
+                    <target>21</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <version>0.0.8</version>
+                <executions>
+                    <execution>
+                        <!-- Default configuration for running with: mvn clean javafx:run -->
+                        <id>default-cli</id>
+                        <configuration>
+                            <mainClass>com.example.lab1_kitpo/com.example.lab1_kitpo.HelloApplication</mainClass>
+                            <launcher>app</launcher>
+                            <jlinkZipName>app</jlinkZipName>
+                            <jlinkImageName>app</jlinkImageName>
+                            <noManPages>true</noManPages>
+                            <stripDebug>true</stripDebug>
+                            <noHeaderFiles>true</noHeaderFiles>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
+============================================================
+FILE: src\main\java\com\example\lab1_kitpo\HelloApplication.java
+============================================================
+package com.example.lab1_kitpo;
+
+import javafx.application.Application;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Scene;
+import javafx.stage.Stage;
+
+import java.io.IOException;
+
+public class HelloApplication extends Application {
+    @Override
+    public void start(Stage stage) throws IOException {
+        FXMLLoader fxmlLoader = new FXMLLoader(HelloApplication.class.getResource("hello-view.fxml"));
+        Scene scene = new Scene(fxmlLoader.load(), 750, 550);
+        stage.setTitle("lab1_kitpo — Односвязный список");
+        stage.setScene(scene);
+        stage.show();
+    }
+}
+
+
+============================================================
+FILE: src\main\java\com\example\lab1_kitpo\HelloController.java
+============================================================
+package com.example.lab1_kitpo;
+
+import com.example.lab1_kitpo.list.SinglyLinkedList;
+import com.example.lab1_kitpo.persist.TextSerializer;
+import com.example.lab1_kitpo.type.Comparator;
+import com.example.lab1_kitpo.type.UserFactory;
+import com.example.lab1_kitpo.type.UserType;
+import javafx.fxml.FXML;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.ListView;
+import javafx.scene.control.TextField;
+import javafx.stage.FileChooser;
+import javafx.stage.Window;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+public class HelloController {
+
+    private final UserFactory factory = new UserFactory();
+    private SinglyLinkedList currentList = new SinglyLinkedList();
+    private UserType currentPrototype;
+    private boolean skipClearOnTypeChange = false;
+
+    @FXML
+    private ComboBox<String> typeSelector;
+    @FXML
+    private TextField valueField;
+    @FXML
+    private TextField indexField;
+    @FXML
+    private ListView<String> listView;
+    @FXML
+    private Label statusLabel;
+
+    @FXML
+    public void initialize() {
+        typeSelector.getItems().addAll(factory.getTypeNameList());
+        typeSelector.getSelectionModel().selectFirst();
+    }
+
+    @FXML
+    private void onTypeChanged() {
+        String name = typeSelector.getValue();
+        if (name == null) return;
+        currentPrototype = factory.getBuilderByName(name);
+        if (currentPrototype == null) return;
+        if (!skipClearOnTypeChange) {
+            currentList.clear();
+        }
+        updateValuePrompt();
+        updateListView();
+        statusLabel.setText("Тип: " + name + ".  Элементов: " + currentList.size());
+    }
+
+    @FXML
+    private void onAddEnd() {
+        if (!checkPrototype()) return;
+        try {
+            Object item = currentPrototype.parseValue(valueField.getText());
+            currentList.addToEnd(item);
+            updateListView();
+            statusLabel.setText("Добавлено в конец: " + item);
+            valueField.clear();
+        } catch (Exception e) {
+            statusLabel.setText("Ошибка ввода: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void onInsert() {
+        if (!checkPrototype()) return;
+        try {
+            int index = parseIndex();
+            Object item = currentPrototype.parseValue(valueField.getText());
+            currentList.insert(index, item);
+            updateListView();
+            statusLabel.setText("Вставлено [" + index + "]: " + item);
+            valueField.clear();
+        } catch (NumberFormatException e) {
+            statusLabel.setText("Ошибка: индекс — целое число");
+        } catch (Exception e) {
+            statusLabel.setText("Ошибка: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void onGet() {
+        if (!checkPrototype()) return;
+        try {
+            int index = parseIndex();
+            Object item = currentList.get(index);
+            statusLabel.setText("Элемент [" + index + "] = " + item);
+            listView.getSelectionModel().select(index);
+        } catch (NumberFormatException e) {
+            statusLabel.setText("Ошибка: индекс — целое число");
+        } catch (Exception e) {
+            statusLabel.setText("Ошибка: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void onRemove() {
+        if (!checkPrototype()) return;
+        try {
+            int index = parseIndex();
+            Object removed = currentList.remove(index);
+            updateListView();
+            statusLabel.setText("Удалён [" + index + "]: " + removed);
+        } catch (NumberFormatException e) {
+            statusLabel.setText("Ошибка: индекс — целое число");
+        } catch (Exception e) {
+            statusLabel.setText("Ошибка: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void onSort() {
+        if (!checkPrototype()) return;
+        try {
+            Comparator comp = currentPrototype.getTypeComparator();
+            currentList.sort(comp);
+            updateListView();
+            statusLabel.setText("Список отсортирован");
+        } catch (Exception e) {
+            statusLabel.setText("Ошибка сортировки: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void onFind() {
+        if (!checkPrototype()) return;
+        try {
+            String search = valueField.getText();
+            Object found = currentList.firstThat(obj -> obj.toString().contains(search));
+            if (found != null) {
+                statusLabel.setText("Найдено: " + found);
+                int idx = currentList.toArrayList().indexOf(found);
+                if (idx >= 0) listView.getSelectionModel().select(idx);
+            } else {
+                statusLabel.setText("Не найдено: \"" + search + "\"");
+            }
+        } catch (Exception e) {
+            statusLabel.setText("Ошибка поиска: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void onSave() {
+        if (!checkPrototype()) return;
+        try {
+            FileChooser fc = new FileChooser();
+            fc.setTitle("Сохранить список");
+            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Text files (*.txt)", "*.txt"));
+            fc.setInitialFileName("list_" + currentPrototype.typeName() + ".txt");
+            File file = fc.showSaveDialog(getWindow());
+            if (file == null) return;
+            TextSerializer.save(currentPrototype, currentList, file.toPath());
+            statusLabel.setText("Сохранено: " + file.getName());
+        } catch (Exception e) {
+            statusLabel.setText("Ошибка сохранения: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void onLoad() {
+        if (!checkPrototype()) return;
+        try {
+            FileChooser fc = new FileChooser();
+            fc.setTitle("Загрузить список");
+            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Text files (*.txt)", "*.txt"));
+            File file = fc.showOpenDialog(getWindow());
+            if (file == null) return;
+            Path path = file.toPath();
+            String fileTypeName;
+            try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+                fileTypeName = reader.readLine();
+            }
+            if (fileTypeName != null && !fileTypeName.trim().equals(currentPrototype.typeName())) {
+                skipClearOnTypeChange = true;
+                typeSelector.setValue(fileTypeName.trim());
+                skipClearOnTypeChange = false;
+            }
+            SinglyLinkedList loaded = TextSerializer.load(factory, path);
+            currentList = loaded;
+            updateListView();
+            statusLabel.setText("Загружено " + loaded.size() + " элементов из " + file.getName());
+        } catch (Exception e) {
+            statusLabel.setText("Ошибка загрузки: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void onClear() {
+        currentList.clear();
+        updateListView();
+        statusLabel.setText("Список очищен");
+    }
+
+    // ==================== Служебные методы ====================
+
+    private boolean checkPrototype() {
+        if (currentPrototype == null) {
+            statusLabel.setText("Сначала выберите тип данных");
+            return false;
+        }
+        return true;
+    }
+
+    private int parseIndex() {
+        return Integer.parseInt(indexField.getText().trim());
+    }
+
+    private Window getWindow() {
+        return listView.getScene().getWindow();
+    }
+
+    private void updateListView() {
+        listView.getItems().clear();
+        for (Object obj : currentList.toArrayList()) {
+            listView.getItems().add(obj.toString());
+        }
+    }
+
+    private void updateValuePrompt() {
+        if (currentPrototype == null) return;
+        switch (currentPrototype.typeName()) {
+            case "IntegerBitSet" -> valueField.setPromptText("{1, 5, 10} или 1 5 10");
+            case "String" -> valueField.setPromptText("Введите текст");
+            default -> valueField.setPromptText("Значение");
+        }
+    }
+}
+
+
+============================================================
+FILE: src\main\java\com\example\lab1_kitpo\Launcher.java
+============================================================
+package com.example.lab1_kitpo;
+
+import javafx.application.Application;
+
+public class Launcher {
+    public static void main(String[] args) {
+        Application.launch(HelloApplication.class, args);
+    }
+}
+
+
+============================================================
+FILE: src\main\java\com\example\lab1_kitpo\list\DoWith.java
+============================================================
+package com.example.lab1_kitpo.list;
+
+public interface DoWith {
+    void doWith(Object obj);
+}
+
+
+============================================================
+FILE: src\main\java\com\example\lab1_kitpo\list\SinglyLinkedList.java
+============================================================
+package com.example.lab1_kitpo.list;
+
+import com.example.lab1_kitpo.type.Comparator;
+import com.example.lab1_kitpo.type.UserType;
+
+import java.util.ArrayList;
+
+/**
+ * Односвязный список, хранящий объекты произвольного типа.
+ * Элементы доступны только последовательно — «улица с односторонним движением».
+ * Поддерживает добавление в конец, доступ по логическому индексу,
+ * итераторы через колбэки ({@link DoWith}, {@link TestIt}).
+ */
+public class SinglyLinkedList {
+
+    /** Узел списка: данные + ссылка на следующий узел. */
+    private static class Node {
+        Object data;
+        Node next;
+
+        Node(Object data) {
+            this.data = data;
+            this.next = null;
+        }
+    }
+
+    private Node head;
+    private Node tail;
+    private int size;
+
+    public SinglyLinkedList() {
+        this.head = null;
+        this.tail = null;
+        this.size = 0;
+    }
+
+    // ==================== Базовые операции ====================
+
+    /**
+     * Добавляет элемент в конец списка. O(1) — за счёт хвостового указателя.
+     */
+    public void addToEnd(Object value) {
+        Node node = new Node(value);
+        if (head == null) {
+            head = node;
+            tail = node;
+        } else {
+            tail.next = node;
+            tail = node;
+        }
+        size++;
+    }
+
+    /**
+     * Возвращает элемент по логическому индексу (0 — первый).
+     *
+     * @throws IndexOutOfBoundsException если индекс вне [0, size)
+     */
+    public Object get(int index) {
+        checkIndex(index);
+        Node current = head;
+        for (int i = 0; i < index; i++) {
+            current = current.next;
+        }
+        return current.data;
+    }
+
+    /**
+     * Вставляет элемент по логическому индексу (0 — перед первым, size — в конец).
+     *
+     * @throws IndexOutOfBoundsException если индекс вне [0, size]
+     */
+    public void insert(int index, Object value) {
+        if (index < 0 || index > size) {
+            throw new IndexOutOfBoundsException("Индекс " + index + " вне [0, " + size + "]");
+        }
+        if (index == size) {
+            addToEnd(value);
+            return;
+        }
+        Node node = new Node(value);
+        if (index == 0) {
+            node.next = head;
+            head = node;
+        } else {
+            Node prev = head;
+            for (int i = 0; i < index - 1; i++) {
+                prev = prev.next;
+            }
+            node.next = prev.next;
+            prev.next = node;
+        }
+        size++;
+    }
+
+    /**
+     * Удаляет элемент по логическому индексу и возвращает его.
+     *
+     * @throws IndexOutOfBoundsException если индекс вне [0, size)
+     */
+    public Object remove(int index) {
+        checkIndex(index);
+        Object removed;
+        if (index == 0) {
+            removed = head.data;
+            head = head.next;
+            if (head == null) {
+                tail = null;
+            }
+        } else {
+            Node prev = head;
+            for (int i = 0; i < index - 1; i++) {
+                prev = prev.next;
+            }
+            removed = prev.next.data;
+            prev.next = prev.next.next;
+            if (prev.next == null) {
+                tail = prev;
+            }
+        }
+        size--;
+        return removed;
+    }
+
+    /** Очищает список. */
+    public void clear() {
+        head = null;
+        tail = null;
+        size = 0;
+    }
+
+    /** Количество элементов в списке. */
+    public int size() {
+        return size;
+    }
+
+    // ==================== Итераторы ====================
+
+    /**
+     * Обходит список и вызывает {@code action.doWith()} для каждого элемента.
+     *
+     * <pre>
+     * list.forEach((obj) -> System.out.println(obj));
+     * </pre>
+     */
+    public void forEach(DoWith action) {
+        for (Node p = head; p != null; p = p.next) {
+            action.doWith(p.data);
+        }
+    }
+
+    /**
+     * Обходит список и возвращает первый элемент, для которого
+     * {@code test.testIt()} вернул {@code true}. Если такого нет — {@code null}.
+     *
+     * <pre>
+     * Object found = list.firstThat((obj) -> obj.toString().length() > 3);
+     * </pre>
+     */
+    public Object firstThat(TestIt test) {
+        for (Node p = head; p != null; p = p.next) {
+            if (test.testIt(p.data)) {
+                return p.data;
+            }
+        }
+        return null;
+    }
+
+    // ==================== Сортировка ====================
+
+    /**
+     * Сортировка слиянием (merge sort) за O(n log n).
+     * Переставляет ссылки {@code next} между существующими узлами —
+     * объекты-данные и узлы не создаются заново и не клонируются.
+     *
+     * @param comp компаратор из {@link UserType#getTypeComparator()}
+     */
+    public void sort(Comparator comp) {
+        if (head == null || head.next == null) {
+            return;
+        }
+        head = mergeSort(head, comp);
+        // Хвост изменился — находим новый последний узел
+        tail = head;
+        while (tail.next != null) {
+            tail = tail.next;
+        }
+    }
+
+    /** Рекурсивно делит список пополам и сортирует каждую половину. */
+    private Node mergeSort(Node node, Comparator comp) {
+        if (node == null || node.next == null) {
+            return node;
+        }
+        Node middle = getMiddle(node);
+        Node nextToMiddle = middle.next;
+        middle.next = null; // разрываем список на две половины
+
+        Node left = mergeSort(node, comp);
+        Node right = mergeSort(nextToMiddle, comp);
+
+        return merge(left, right, comp);
+    }
+
+    /**
+     * Находит узел, после которого список делится пополам.
+     * Метод «черепахи и зайца»: slow — 1 шаг, fast — 2 шага.
+     */
+    private Node getMiddle(Node node) {
+        Node slow = node;
+        Node fast = node.next;
+        while (fast != null && fast.next != null) {
+            slow = slow.next;
+            fast = fast.next.next;
+        }
+        return slow;
+    }
+
+    /**
+     * Сливает два отсортированных подсписка в один,
+     * перецепляя {@code next} у существующих узлов.
+     */
+    private Node merge(Node left, Node right, Comparator comp) {
+        Node dummy = new Node(null); // временный узел-заглушка, не попадает в список
+        Node current = dummy;
+        while (left != null && right != null) {
+            if (comp.compare(left.data, right.data) <= 0) {
+                current.next = left;
+                left = left.next;
+            } else {
+                current.next = right;
+                right = right.next;
+            }
+            current = current.next;
+        }
+        current.next = (left != null) ? left : right;
+        return dummy.next;
+    }
+
+    // ==================== Отображение ====================
+
+    /** Собирает элементы в ArrayList (для передачи в JavaFX ListView и т.п.). */
+    public ArrayList<Object> toArrayList() {
+        ArrayList<Object> result = new ArrayList<>(size);
+        for (Node p = head; p != null; p = p.next) {
+            result.add(p.data);
+        }
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder("[");
+        Node p = head;
+        while (p != null) {
+            sb.append(p.data);
+            if (p.next != null) {
+                sb.append(", ");
+            }
+            p = p.next;
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    // ==================== Служебное ====================
+
+    private void checkIndex(int index) {
+        if (index < 0 || index >= size) {
+            throw new IndexOutOfBoundsException("Индекс " + index + " вне [0, " + size + ")");
+        }
+    }
+}
+
+============================================================
+FILE: src\main\java\com\example\lab1_kitpo\list\TestIt.java
+============================================================
+package com.example.lab1_kitpo.list;
+
+public interface TestIt {
+    boolean testIt(Object obj);
+}
+
+
+============================================================
+FILE: src\main\java\com\example\lab1_kitpo\MainDemo.java
+============================================================
+package com.example.lab1_kitpo;
+
+import com.example.lab1_kitpo.list.SinglyLinkedList;
+import com.example.lab1_kitpo.persist.TextSerializer;
+import com.example.lab1_kitpo.type.Comparator;
+import com.example.lab1_kitpo.type.UserFactory;
+import com.example.lab1_kitpo.type.UserType;
+
+import java.io.IOException;
+import java.nio.file.Path;
+
+/**
+ * Консольная демонстрация работы структуры данных.
+ * Один и тот же сценарий операций прогоняется для каждого
+ * хранимого типа, взятого из {@link UserFactory}.
+ */
+public class MainDemo {
+
+    public static void main(String[] args) {
+        UserFactory factory = new UserFactory();
+
+        for (String typeName : factory.getTypeNameList()) {
+            System.out.println("\n============================================");
+            System.out.println("  Тип: " + typeName);
+            System.out.println("============================================");
+            testType(factory, factory.getBuilderByName(typeName));
+        }
+    }
+
+    /** Единый сценарий тестирования для произвольного типа. */
+    private static void testType(UserFactory factory, UserType proto) {
+        SinglyLinkedList list = new SinglyLinkedList();
+        String[] initial = getInitial(proto);
+        String insertHead = getInsertHead(proto);
+        String insertMid = getInsertMid(proto);
+
+        // 1. addToEnd
+        System.out.println("\n[1] addToEnd x " + initial.length);
+        for (String s : initial) {
+            list.addToEnd(proto.parseValue(s));
+        }
+        print(list);
+
+        // 2. insert
+        System.out.println("\n[2] insert(0, " + insertHead + ")");
+        list.insert(0, proto.parseValue(insertHead));
+        print(list);
+
+        System.out.println("\n[2] insert(2, " + insertMid + ")");
+        list.insert(2, proto.parseValue(insertMid));
+        print(list);
+
+        // 3. get
+        System.out.println("\n[3] get(0) = " + list.get(0));
+        System.out.println("[3] get(2) = " + list.get(2));
+        System.out.println("[3] get(последний) = " + list.get(list.size() - 1));
+
+        // 4. remove
+        System.out.println("\n[4] remove(0)");
+        System.out.println("    удалён: " + list.remove(0));
+        print(list);
+
+        // 5. forEach
+        System.out.println("\n[5] forEach:");
+        list.forEach(obj -> System.out.println("    -> " + obj));
+
+        // 6. sort
+        System.out.println("\n[6] sort — сортировка по компаратору типа:");
+        Comparator comp = proto.getTypeComparator();
+        list.sort(comp);
+        print(list);
+
+        // 7. firstThat
+        System.out.println("\n[7] firstThat(toString().length() > 5):");
+        Object found = list.firstThat(obj -> obj.toString().length() > 5);
+        System.out.println("    найдено: " + found);
+
+        // 8. save
+        Path file = Path.of("demo_" + proto.typeName() + ".txt");
+        System.out.println("\n[8] save -> " + file.toAbsolutePath());
+        try {
+            TextSerializer.save(proto, list, file);
+            System.out.println("    OK");
+        } catch (IOException e) {
+            System.out.println("    ОШИБКА: " + e.getMessage());
+            return;
+        }
+
+        // 9. load
+        System.out.println("\n[9] load <- " + file);
+        try {
+            SinglyLinkedList loaded = TextSerializer.load(factory, file);
+            System.out.println("    загружено " + loaded.size() + " элементов:");
+            loaded.forEach(obj -> System.out.println("    -> " + obj));
+        } catch (IOException e) {
+            System.out.println("    ОШИБКА: " + e.getMessage());
+        }
+
+        // 10. Итоговый toString
+        System.out.println("\n[10] итоговый toString: " + list);
+    }
+
+    private static void print(SinglyLinkedList list) {
+        System.out.println("    (" + list.size() + ") " + list);
+    }
+
+    // ====== Тестовые данные по типам ======
+
+    private static String[] getInitial(UserType proto) {
+        return switch (proto.typeName()) {
+            case "IntegerBitSet" -> new String[]{
+                    "{1, 5, 10}", "{3, 7}", "{2}", "{0, 4, 8, 12}", "{6}"
+            };
+            case "String" -> new String[]{
+                    "banana", "apple", "cherry", "date", "elderberry"
+            };
+            default -> new String[]{"a", "b", "c", "d", "e"};
+        };
+    }
+
+    private static String getInsertHead(UserType proto) {
+        return switch (proto.typeName()) {
+            case "IntegerBitSet" -> "{99}";
+            case "String" -> "zzz";
+            default -> "x";
+        };
+    }
+
+    private static String getInsertMid(UserType proto) {
+        return switch (proto.typeName()) {
+            case "IntegerBitSet" -> "{42}";
+            case "String" -> "mmm";
+            default -> "y";
+        };
+    }
+}
+
+============================================================
+FILE: src\main\java\com\example\lab1_kitpo\persist\package-info.java
+============================================================
+package com.example.lab1_kitpo.persist;
+
+
+============================================================
+FILE: src\main\java\com\example\lab1_kitpo\persist\TextSerializer.java
+============================================================
+package com.example.lab1_kitpo.persist;
+
+import com.example.lab1_kitpo.list.SinglyLinkedList;
+import com.example.lab1_kitpo.type.UserFactory;
+import com.example.lab1_kitpo.type.UserType;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+/**
+ * Текстовая сериализация/десериализация структуры данных.
+ * Формат файла:
+ * <pre>
+ * строка 1:  имя типа (например, "IntegerBitSet")
+ * строка 2+: toString() каждого элемента списка
+ * </pre>
+ */
+public class TextSerializer {
+
+    /**
+     * Сохраняет список в текстовый файл.
+     *
+     * @param typePrototype прототип типа — используется только для имени типа
+     * @param list          сохраняемый список
+     * @param path          путь к файлу
+     */
+    public static void save(UserType typePrototype, SinglyLinkedList list, Path path) throws IOException {
+        try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(path, StandardCharsets.UTF_8))) {
+            writer.println(typePrototype.typeName());
+            list.forEach(obj -> writer.println(obj.toString()));
+        }
+    }
+
+    /**
+     * Загружает список из текстового файла.
+     * Имя типа читается из первой строки, затем по нему
+     * из фабрики берётся прототип для парсинга элементов.
+     *
+     * @param factory фабрика типов (для определения прототипа по имени)
+     * @param path    путь к файлу
+     * @return новый список с загруженными элементами
+     */
+    public static SinglyLinkedList load(UserFactory factory, Path path) throws IOException {
+        try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            String typeName = reader.readLine();
+            if (typeName == null || typeName.isBlank()) {
+                throw new IOException("Файл пуст или не содержит имени типа: " + path);
+            }
+            UserType proto = factory.getBuilderByName(typeName.trim());
+            if (proto == null) {
+                throw new IOException("Неизвестный тип: \"" + typeName.trim() + "\"");
+            }
+            SinglyLinkedList list = new SinglyLinkedList();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                list.addToEnd(proto.parseValue(line));
+            }
+            return list;
+        }
+    }
+}
+
+============================================================
+FILE: src\main\java\com\example\lab1_kitpo\type\Comparator.java
+============================================================
+package com.example.lab1_kitpo.type;
+
+public interface Comparator {
+    int compare(Object o1, Object o2);
+}
+
+
+============================================================
+FILE: src\main\java\com\example\lab1_kitpo\type\impl\IntegerBitSet.java
+============================================================
+package com.example.lab1_kitpo.type.impl;
+
+import com.example.lab1_kitpo.type.Comparator;
+import com.example.lab1_kitpo.type.UserType;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.BitSet;
+import java.util.StringJoiner;
+
+/**
+ * Множество целых неотрицательных чисел, представленное битовым массивом.
+ * i-й разряд 1/0 — наличие/отсутствие числа i в множестве.
+ * Операции: объединение, пересечение, разность, добавление, проверка вхождения.
+ * Сравнение — по мощности (cardinality).
+ */
+public class IntegerBitSet implements UserType {
+
+    private final BitSet bits;
+
+    public IntegerBitSet() {
+        this.bits = new BitSet();
+    }
+
+    public IntegerBitSet(BitSet bits) {
+        this.bits = (BitSet) bits.clone();
+    }
+
+    // ==================== Операции множества ====================
+
+    /** Добавляет элемент в множество. */
+    public void add(int value) {
+        if (value < 0) {
+            throw new IllegalArgumentException("Отрицательные числа не поддерживаются: " + value);
+        }
+        bits.set(value);
+    }
+
+    /** Проверяет, входит ли число в множество. */
+    public boolean contains(int value) {
+        if (value < 0) {
+            throw new IllegalArgumentException("Отрицательные числа не поддерживаются: " + value);
+        }
+        return bits.get(value);
+    }
+
+    /** Объединение: this = this ∪ other. */
+    public void union(IntegerBitSet other) {
+        bits.or(other.bits);
+    }
+
+    /** Пересечение: this = this ∩ other. */
+    public void intersection(IntegerBitSet other) {
+        bits.and(other.bits);
+    }
+
+    /** Разность: this = this \ other. */
+    public void difference(IntegerBitSet other) {
+        bits.andNot(other.bits);
+    }
+
+    /** Мощность множества (количество элементов). */
+    public int cardinality() {
+        return bits.cardinality();
+    }
+
+    // ==================== Реализация UserType ====================
+
+    @Override
+    public String typeName() {
+        return "IntegerBitSet";
+    }
+
+    @Override
+    public Object create() {
+        return new IntegerBitSet();
+    }
+
+    @Override
+    public Object clone() {
+        return new IntegerBitSet(bits);
+    }
+
+    /**
+     * Читает одну строку из потока (до символа '\n') и парсит её.
+     * Посимвольное чтение — чтобы не «съесть» данные следующих строк
+     * при повторных вызовах на одном потоке.
+     */
+    @Override
+    public Object readValue(InputStreamReader in) {
+        try {
+            StringBuilder sb = new StringBuilder();
+            int c;
+            while ((c = in.read()) != -1 && c != '\n') {
+                if (c != '\r') {
+                    sb.append((char) c);
+                }
+            }
+            return parseValue(sb.toString());
+        } catch (IOException e) {
+            throw new RuntimeException("Ошибка чтения IntegerBitSet из потока", e);
+        }
+    }
+
+    /**
+     * Парсит строку вида "{1, 3, 5}", "1, 3, 5", "1 3 5" или "{}".
+     * Разделители — запятые и/или пробелы. Фигурные скобки необязательны.
+     */
+    @Override
+    public Object parseValue(String ss) {
+        IntegerBitSet result = new IntegerBitSet();
+        if (ss == null || ss.isBlank()) {
+            return result;
+        }
+        String cleaned = ss.trim();
+        if (cleaned.startsWith("{")) {
+            cleaned = cleaned.substring(1);
+        }
+        if (cleaned.endsWith("}")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 1);
+        }
+        if (cleaned.isBlank()) {
+            return result;
+        }
+        String[] parts = cleaned.split("[,\\s]+");
+        for (String part : parts) {
+            if (!part.isBlank()) {
+                result.add(Integer.parseInt(part.trim()));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Компаратор — по мощности множества (cardinality).
+     * Возвращает отрицательное, если o1 «меньше» o2, и т.д.
+     */
+    @Override
+    public Comparator getTypeComparator() {
+        return (o1, o2) -> {
+            int c1 = ((IntegerBitSet) o1).cardinality();
+            int c2 = ((IntegerBitSet) o2).cardinality();
+            return Integer.compare(c1, c2);
+        };
+    }
+
+    // ==================== Отображение ====================
+
+    /** Формат: "{1, 3, 5}" или "{}" для пустого. Используется и для сериализации. */
+    @Override
+    public String toString() {
+        StringJoiner joiner = new StringJoiner(", ", "{", "}");
+        for (int i = bits.nextSetBit(0); i >= 0; i = bits.nextSetBit(i + 1)) {
+            joiner.add(String.valueOf(i));
+        }
+        return joiner.toString();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        return bits.equals(((IntegerBitSet) o).bits);
+    }
+
+    @Override
+    public int hashCode() {
+        return bits.hashCode();
+    }
+}
+
+============================================================
+FILE: src\main\java\com\example\lab1_kitpo\type\impl\package-info.java
+============================================================
+package com.example.lab1_kitpo.type.impl;
+
+
+============================================================
+FILE: src\main\java\com\example\lab1_kitpo\type\impl\StringType.java
+============================================================
+package com.example.lab1_kitpo.type.impl;
+
+import com.example.lab1_kitpo.type.Comparator;
+import com.example.lab1_kitpo.type.UserType;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
+
+/**
+ * Обёртка над строкой — простейший хранимый тип для демонстрации
+ * работы структуры данных с произвольным типом.
+ * Сравнение — лексикографическое (String.compareTo).
+ */
+public class StringType implements UserType {
+
+    private String value;
+
+    public StringType() {
+        this.value = "";
+    }
+
+    public StringType(String value) {
+        this.value = value != null ? value : "";
+    }
+
+    // ==================== Операции ====================
+
+    public String getValue() {
+        return value;
+    }
+
+    public void setValue(String value) {
+        this.value = value != null ? value : "";
+    }
+
+    // ==================== Реализация UserType ====================
+
+    @Override
+    public String typeName() {
+        return "String";
+    }
+
+    @Override
+    public Object create() {
+        return new StringType("");
+    }
+
+    @Override
+    public Object clone() {
+        return new StringType(this.value);
+    }
+
+    /**
+     * Читает одну строку из потока (до символа '\n') и оборачивает её.
+     * Посимвольное чтение — чтобы не «съесть» данные следующих строк
+     * при повторных вызовах на одном потоке.
+     */
+    @Override
+    public Object readValue(InputStreamReader in) {
+        try {
+            StringBuilder sb = new StringBuilder();
+            int c;
+            while ((c = in.read()) != -1 && c != '\n') {
+                if (c != '\r') {
+                    sb.append((char) c);
+                }
+            }
+            return parseValue(sb.toString());
+        } catch (IOException e) {
+            throw new RuntimeException("Ошибка чтения StringType из потока", e);
+        }
+    }
+
+    /** Строка берётся как есть — без разбора форматов. */
+    @Override
+    public Object parseValue(String ss) {
+        return new StringType(ss);
+    }
+
+    /** Компаратор — лексикографическое сравнение строк. */
+    @Override
+    public Comparator getTypeComparator() {
+        return (o1, o2) -> {
+            String s1 = ((StringType) o1).value;
+            String s2 = ((StringType) o2).value;
+            return s1.compareTo(s2);
+        };
+    }
+
+    // ==================== Отображение ====================
+
+    /** Возвращает содержимое строки как есть. */
+    @Override
+    public String toString() {
+        return value;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        return value.equals(((StringType) o).value);
+    }
+
+    @Override
+    public int hashCode() {
+        return value.hashCode();
+    }
+}
+
+============================================================
+FILE: src\main\java\com\example\lab1_kitpo\type\UserFactory.java
+============================================================
+package com.example.lab1_kitpo.type;
+
+import com.example.lab1_kitpo.type.impl.IntegerBitSet;
+import com.example.lab1_kitpo.type.impl.StringType;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * Фабрика хранимых типов данных.
+ * Хранит зарегистрированные прототипы {@link UserType} по имени типа.
+ * Для добавления нового ТД достаточно создать класс, реализующий {@link UserType},
+ * и добавить его экземпляр через {@link #register(UserType)}.
+ * Никакие другие изменения в код не требуются.
+ */
+public class UserFactory {
+
+    private final Map<String, UserType> prototypes = new LinkedHashMap<>();
+
+    public UserFactory() {
+        register(new IntegerBitSet());
+        register(new StringType());
+    }
+
+    /** Регистрирует прототип нового хранимого типа. */
+    public void register(UserType type) {
+        prototypes.put(type.typeName(), type);
+    }
+
+    /** Возвращает список имён зарегистрированных типов (для выпадающего списка в GUI). */
+    public ArrayList<String> getTypeNameList() {
+        return new ArrayList<>(prototypes.keySet());
+    }
+
+    /** Возвращает прототип-строитель по имени типа. */
+    public UserType getBuilderByName(String name) {
+        return prototypes.get(name);
+    }
+}
+
+
+============================================================
+FILE: src\main\java\com\example\lab1_kitpo\type\UserType.java
+============================================================
+package com.example.lab1_kitpo.type;
+
+import java.io.InputStreamReader;
+
+public interface UserType {
+    String typeName();
+
+    Object create();
+
+    Object clone();
+
+    Object readValue(InputStreamReader in);
+
+    Object parseValue(String ss);
+
+    Comparator getTypeComparator();
+}
+
+
+============================================================
+FILE: src\main\java\module-info.java
+============================================================
+module com.example.lab1_kitpo {
+    requires javafx.controls;
+    requires javafx.fxml;
+
+
+    opens com.example.lab1_kitpo to javafx.fxml;
+    exports com.example.lab1_kitpo;
+    exports com.example.lab1_kitpo.type;
+    exports com.example.lab1_kitpo.list;
+    exports com.example.lab1_kitpo.persist;
+}
+
+============================================================
+FILE: src\main\resources\com\example\lab1_kitpo\hello-view.fxml
+============================================================
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox spacing="10.0" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.example.lab1_kitpo.HelloController">
+    <padding>
+        <Insets bottom="15.0" left="15.0" right="15.0" top="15.0"/>
+    </padding>
+
+    <!-- Строка 1: тип данных + ввод значения + добавление -->
+    <HBox spacing="10.0" alignment="CENTER_LEFT">
+        <Label text="Тип:"/>
+        <ComboBox fx:id="typeSelector" prefWidth="130.0" onAction="#onTypeChanged"/>
+        <Label text="Значение:"/>
+        <TextField fx:id="valueField" promptText="{1, 5, 10} или текст">
+            <HBox.hgrow>ALWAYS</HBox.hgrow>
+        </TextField>
+        <Button text="В конец" onAction="#onAddEnd" defaultButton="true"/>
+        <Button text="Найти" onAction="#onFind"/>
+    </HBox>
+
+    <!-- Строка 2: индекс + операции по индексу -->
+    <HBox spacing="10.0" alignment="CENTER_LEFT">
+        <Label text="Индекс:"/>
+        <TextField fx:id="indexField" promptText="0" prefWidth="70.0"/>
+        <Button text="Вставить" onAction="#onInsert"/>
+        <Button text="Получить" onAction="#onGet"/>
+        <Button text="Удалить" onAction="#onRemove"/>
+    </HBox>
+
+    <!-- Строка 3: сортировка, файлы, очистка -->
+    <HBox spacing="10.0" alignment="CENTER_LEFT">
+        <Button text="Сортировать" onAction="#onSort"/>
+        <Button text="Сохранить" onAction="#onSave"/>
+        <Button text="Загрузить" onAction="#onLoad"/>
+        <Button text="Очистить" onAction="#onClear"/>
+    </HBox>
+
+    <!-- Отображение содержимого -->
+    <ListView fx:id="listView" VBox.vgrow="ALWAYS"/>
+
+    <!-- Строка состояния -->
+    <Label fx:id="statusLabel" text="Выберите тип данных и начните работу"/>
+</VBox>
+
+

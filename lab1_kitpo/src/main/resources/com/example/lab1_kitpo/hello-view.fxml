@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox spacing="10.0" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.example.lab1_kitpo.HelloController">
+    <padding>
+        <Insets bottom="15.0" left="15.0" right="15.0" top="15.0"/>
+    </padding>
+
+    <!-- Строка 1: тип данных + ввод значения + добавление -->
+    <HBox spacing="10.0" alignment="CENTER_LEFT">
+        <Label text="Тип:"/>
+        <ComboBox fx:id="typeSelector" prefWidth="130.0" onAction="#onTypeChanged"/>
+        <Label text="Значение:"/>
+        <TextField fx:id="valueField" promptText="{1, 5, 10} или текст">
+            <HBox.hgrow>ALWAYS</HBox.hgrow>
+        </TextField>
+        <Button text="В конец" onAction="#onAddEnd" defaultButton="true"/>
+        <Button text="Найти" onAction="#onFind"/>
+    </HBox>
+
+    <!-- Строка 2: индекс + операции по индексу -->
+    <HBox spacing="10.0" alignment="CENTER_LEFT">
+        <Label text="Индекс:"/>
+        <TextField fx:id="indexField" promptText="0" prefWidth="70.0"/>
+        <Button text="Вставить" onAction="#onInsert"/>
+        <Button text="Получить" onAction="#onGet"/>
+        <Button text="Удалить" onAction="#onRemove"/>
+    </HBox>
+
+    <!-- Строка 3: сортировка, файлы, очистка -->
+    <HBox spacing="10.0" alignment="CENTER_LEFT">
+        <Button text="Сортировать" onAction="#onSort"/>
+        <Button text="Сохранить" onAction="#onSave"/>
+        <Button text="Загрузить" onAction="#onLoad"/>
+        <Button text="Очистить" onAction="#onClear"/>
+    </HBox>
+
+    <!-- Отображение содержимого -->
+    <ListView fx:id="listView" VBox.vgrow="ALWAYS"/>
+
+    <!-- Строка состояния -->
+    <Label fx:id="statusLabel" text="Выберите тип данных и начните работу"/>
+</VBox>
